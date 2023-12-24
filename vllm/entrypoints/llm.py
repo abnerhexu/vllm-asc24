@@ -179,6 +179,7 @@ class LLM:
         if use_tqdm:
             num_requests = self.llm_engine.get_num_unfinished_requests()
             pbar = tqdm(total=num_requests, desc="Processed prompts")
+            print(f"total num_requests: {num_requests}")
         # Run the engine.
         outputs: List[RequestOutput] = []
         while self.llm_engine.has_unfinished_requests():

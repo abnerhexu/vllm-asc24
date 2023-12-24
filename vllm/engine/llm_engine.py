@@ -2,7 +2,7 @@ import copy
 import time
 from functools import partial
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
-
+from collections import deque
 from vllm.config import (CacheConfig, ModelConfig, ParallelConfig,
                          SchedulerConfig)
 from vllm.core.scheduler import Scheduler, SchedulerOutputs
@@ -550,7 +550,7 @@ class LLMEngine:
 
     def _process_model_outputs(
             self, output: SamplerOutput,
-            scheduler_outputs: SchedulerOutputs) -> List[RequestOutput]:
+            scheduler_outputs: SchedulerOutputs) -> deque: # List[RequestOutput]:
         # Update the scheduled sequence groups with the model outputs.
         scheduled_seq_groups = scheduler_outputs.scheduled_seq_groups
         for seq_group, outputs in zip(scheduled_seq_groups, output):
@@ -560,9 +560,22 @@ class LLMEngine:
         self.scheduler.free_finished_seq_groups()
 
         # Create the outputs.
-        request_outputs: List[RequestOutput] = []
-        for seq_group in (scheduled_seq_groups +
-                          scheduler_outputs.ignored_seq_groups):
+        # NOTE(abnerluo): Change request_outputs to deque for better performance.
+        # request_outputs: List[RequestOutput] = []
+        request_outputs: deque = deque([])
+        # NOTE(abnerluo): This is used in extending scheduled_seq_group since
+        # now it is a deque rather than List[SchedulerOutputs]
+        # seq_group_deque = copy.deepcopy(scheduled_seq_groups)
+        # seq_group_deque.extend(scheduler_outputs.ignored_seq_groups)
+        # for seq_group in (scheduled_seq_groups +
+        #                   scheduler_outputs.ignored_seq_groups):
+        # for seq_group in seq_group_deque:
+        # NOTE(abnerluo): For less memory copy, iterate twice.
+        for seq_group in scheduled_seq_groups:
+            request_output = RequestOutput.from_seq_group(seq_group)
+            request_outputs.append(request_output)
+
+        for seq_group in scheduler_outputs.ignored_seq_groups:
             request_output = RequestOutput.from_seq_group(seq_group)
             request_outputs.append(request_output)
 

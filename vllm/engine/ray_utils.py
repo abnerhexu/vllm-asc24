@@ -68,11 +68,11 @@ def initialize_cluster(
                 "serving.")
         # Connect to a ray cluster.
         if is_hip():
-            ray.init(address=ray_address,
+            ray.init(num_cpus=32, address=ray_address,
                      ignore_reinit_error=True,
                      num_gpus=parallel_config.world_size)
         else:
-            ray.init(address=ray_address, ignore_reinit_error=True)
+            ray.init(num_cpus=32, num_gpus=8, address=ray_address, ignore_reinit_error=True)
 
     if not parallel_config.worker_use_ray:
         # Initialize cluster locally.
