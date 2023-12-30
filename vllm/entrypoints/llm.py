@@ -1,6 +1,8 @@
 from typing import List, Optional, Union
 
 from tqdm import tqdm
+import asyncio
+import time
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from vllm.engine.arg_utils import EngineArgs
@@ -8,6 +10,13 @@ from vllm.engine.llm_engine import LLMEngine
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import SamplingParams
 from vllm.utils import Counter
+from vllm.logger import init_logger
+
+logger = init_logger(__name__)
+
+async def iter_info(loogger, iter_start, iter_end, request_id, reason, tid):
+    ltid = len(tid)
+    loogger.info(f"Request {request_id} finished, time {iter_end - iter_start: .4f}, reason {reason}, output token number: {ltid}")
 
 
 class LLM:
@@ -169,17 +178,16 @@ class LLM:
         prompt: Optional[str],
         sampling_params: SamplingParams,
         prompt_token_ids: Optional[List[int]],
-    ) -> None:
+    ) -> int:
         request_id = str(next(self.request_counter))
-        self.llm_engine.add_request(request_id, prompt, sampling_params,
+        return self.llm_engine.add_request(request_id, prompt, sampling_params,
                                     prompt_token_ids)
 
     def _run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
-        # Initialize tqdm.
-        if use_tqdm:
-            num_requests = self.llm_engine.get_num_unfinished_requests()
-            pbar = tqdm(total=num_requests, desc="Processed prompts")
-            print(f"total num_requests: {num_requests}")
+        # this request_id is not exactly what request_id in 
+        # RequestOut mean, is just simply processing index.df56h783418
+        request_id = 0 
+        iter_start = time.time()
         # Run the engine.
         outputs: List[RequestOutput] = []
         while self.llm_engine.has_unfinished_requests():
@@ -187,10 +195,16 @@ class LLM:
             for output in step_outputs:
                 if output.finished:
                     outputs.append(output)
-                    if use_tqdm:
-                        pbar.update(1)
-        if use_tqdm:
-            pbar.close()
+                    iter_end = time.time()
+                    asyncio.run(iter_info(
+                        logger, 
+                        iter_start, 
+                        iter_end, 
+                        request_id, 
+                        output.outputs[0].finish_reason, 
+                        output.outputs[0].token_ids))
+                    request_id += 1
+                    iter_start = time.time()
         # Sort the outputs by request ID.
         # This is necessary because some requests may be finished earlier than
         # its previous requests.
