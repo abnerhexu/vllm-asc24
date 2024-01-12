@@ -75,7 +75,7 @@ class Scheduler:
             num_cpu_blocks=self.cache_config.num_cpu_blocks,
             sliding_window=self.cache_config.sliding_window)
 
-        # TODO(zhuohan): Use deque instead of list for better performance.
+        # NOTE(abnerluo): `deque` provides append and pop method with O(1) time complexity.
         # Sequence groups in the WAITING state.
         self.waiting: deque = deque([]) # List[SequenceGroup] = []
         # Sequence groups in the RUNNING state.
@@ -137,8 +137,8 @@ class Scheduler:
             # sequence groups are added to the front and the new sequence groups
             # are added to the back.
             while self.waiting:
-                seq_group = self.waiting.popleft() # [0]
-                self.waiting.insert(0, seq_group)
+                seq_group = self.waiting[0]
+
                 waiting_seqs = seq_group.get_seqs(
                     status=SequenceStatus.WAITING)
                 assert len(waiting_seqs) == 1, (
@@ -152,7 +152,7 @@ class Scheduler:
                     for seq in waiting_seqs:
                         seq.status = SequenceStatus.FINISHED_IGNORED
                     ignored_seq_groups.append(seq_group)
-                    self.waiting.popleft()
+                    self.waiting.popleft(0)
                     continue
 
                 # If the sequence group cannot be allocated, stop.
@@ -166,7 +166,7 @@ class Scheduler:
                     for seq in waiting_seqs:
                         seq.status = SequenceStatus.FINISHED_IGNORED
                     ignored_seq_groups.append(seq_group)
-                    self.waiting.popleft()
+                    self.waiting.popleft(0)
                     continue
 
                 # If the number of batched tokens exceeds the limit, stop.
@@ -188,7 +188,7 @@ class Scheduler:
                     break
                 seq_lens = new_seq_lens
 
-                seq_group = self.waiting.popleft()
+                seq_group = self.waiting.popleft(0)
                 self._allocate(seq_group)
                 self.running.append(seq_group)
                 num_curr_seqs += num_new_seqs
@@ -219,7 +219,7 @@ class Scheduler:
         running: deque = deque([]) # List[SequenceGroup] = []
         preempted: deque = deque([]) # List[SequenceGroup] = []
         while self.running:
-            seq_group = self.running.popleft()
+            seq_group = self.running.popleft(0)
             while not self.block_manager.can_append_slot(seq_group):
                 if self.running:
                     # Preempt the lowest-priority sequence groups.
@@ -247,8 +247,7 @@ class Scheduler:
                                 for seq_group in self.running)
 
             while self.swapped:
-                seq_group = self.swapped.popleft() # [0]
-                self.swapped.insert(0, seq_group)
+                seq_group = self.swapped[0]
                 # If the sequence group cannot be swapped in, stop.
                 if not self.block_manager.can_swap_in(seq_group):
                     break
