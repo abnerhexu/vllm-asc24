@@ -36,6 +36,7 @@ class ModelRunner:
         self.parallel_config = parallel_config
         self.scheduler_config = scheduler_config
         self.is_driver_worker = is_driver_worker
+        self.num_iterations = 0
 
         # model_config can be None in tests/samplers/test_sampler.py.
         # FIXME(woosuk): This is a hack to make the tests work. Refactor this.
@@ -442,6 +443,7 @@ class ModelRunner:
         seq_group_metadata_list: Optional[List[SequenceGroupMetadata]],
         kv_caches: List[Tuple[torch.Tensor, torch.Tensor]],
     ) -> Optional[SamplerOutput]:
+        start = time.time()
         input_tokens, input_positions, input_metadata, sampling_metadata = (
             self.prepare_input_tensors(seq_group_metadata_list))
         # Execute the model.
@@ -462,6 +464,9 @@ class ModelRunner:
             hidden_states=hidden_states,
             sampling_metadata=sampling_metadata,
         )
+        end = time.time()
+        logger.info(f"model executor: iteration {self.num_iterations} finished in {end - start: .4f}, {len(seq_group_metadata_list)} prompts processed.")
+        self.num_iterations += 1
         return output
 
     @torch.inference_mode()
