@@ -181,7 +181,7 @@ class LLM:
         self.llm_engine.add_request(request_id, prompt, sampling_params,
                                     prompt_token_ids)
 
-    def _run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
+    def _run_engine(self, use_tqdm: bool, rank: int) -> List[RequestOutput]:
         # Initialize tqdm.
         if use_tqdm:
             num_requests = self.llm_engine.get_num_unfinished_requests()
@@ -194,7 +194,7 @@ class LLM:
             for output in step_outputs:
                 if output.finished:
                     outputs.append(output)
-                    pbar.write(f"request {output.request_id} finished with {output.outputs.finish_reason}, {len(output.outputs.text)} tokens.")
+                    pbar.write(f"[Rank {rank}] request {output.request_id} finished with {output.outputs.finish_reason}, {len(output.outputs.text)} tokens.")
                     if use_tqdm:
                         pbar.update(1)   
         if use_tqdm:
